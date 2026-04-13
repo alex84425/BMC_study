@@ -103,3 +103,67 @@ runqemu
 - 錯誤訊息不直觀，要回去看 build log
 - 加一個新套件要寫 Recipe，有固定格式要學
 - 不同 Layer 版本相容性問題複雜
+
+---
+
+## 部分編譯與測試（不用每次重建整個 image）
+
+### 只編譯單一套件
+
+```bash
+bitbake phosphor-hwmon        # 只重新編譯這個套件
+bitbake -f phosphor-hwmon     # 強制重新編譯（忽略快取）
+```
+
+### 推薦開發流程
+
+```
+開發階段  → 直接 SSH 進 QEMU 改，快速迭代
+功能確認  → devtool deploy-target 測試
+完成之後  → 才寫 Recipe 打包進正式 image
+```
+
+### devtool（Yocto 開發工具）
+
+```bash
+devtool modify phosphor-hwmon              # 進入開發模式
+devtool deploy-target phosphor-hwmon root@<QEMU-IP>  # 直接部署到 QEMU
+```
+
+### 最快的方法：直接在 QEMU 上改
+
+```bash
+# Python 服務直接 scp 進去改，重啟 service 就好
+scp my_service.py root@<QEMU-IP>:/usr/bin/
+ssh root@<QEMU-IP> systemctl restart my-service
+```
+
+---
+
+## QEMU 是什麼
+
+**QEMU = Quick EMUlator**，用軟體模擬一整台硬體機器，不需要實體 BMC 板子就能測試：
+
+```
+你的電腦（x86）
+  └─ QEMU 模擬出一台 ARM 伺服器
+       ├─ 模擬 ARM CPU
+       ├─ 模擬 RAM
+       ├─ 模擬網路卡
+       └─ 載入 BMC 映像檔跑起來
+            └─ SSH 進去、ipmitool 連、打 Redfish API 都可以用
+```
+
+|                    | QEMU                  | 真實 BMC           |
+| ------------------ | --------------------- | ------------------ |
+| 硬體感測器         | ❌ 沒有（模擬的）     | ✅ 有真實溫度/風扇 |
+| 開發方便度         | ✅ 隨時重建、不怕燒壞 | 燒錯韌體可能磚掉   |
+| 費用               | 免費                  | 要有實體機         |
+| 網路/D-Bus/Redfish | ✅ 完整可用           | ✅ 完整可用        |
+
+**常用 QEMU 平台：**
+
+```bash
+. setup romulus      # 最常拿來測試
+. setup ast2600-evb  # AST2600 晶片（很多伺服器用這顆）
+```
